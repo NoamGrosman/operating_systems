@@ -1,0 +1,108 @@
+#include "jobs.h"
+#include <iostream>
+#include <string>
+#include <vector>
+#include <ctime>
+using namespace std;
+
+Job::Job(int jobId,
+         pid_t pid,
+         const string& cmdLine,
+         time_t startTime,
+         JobStatus status)
+    : m_id(jobId),
+      m_pid(pid),
+      m_cmdLine(cmdLine),
+      m_startTime(startTime),
+      m_status(status)
+{}
+
+int Job::getId() const {return m_id;}
+pid_t Job::getPid() const {return m_pid;}
+const string& Job::getCommand() const {return m_cmdLine;}
+time_t Job::getStartTime() const {return m_startTime;}
+JobStatus Job::getStatus() const {return m_status;}
+void Job::setStatus(JobStatus newStatus) {m_status = newStatus;}
+
+JobList::JobList() : m_jobs() {}
+
+int JobList::allocateJobId() const {
+    return static_cast<int>(m_jobs.size());
+}
+
+int JobList::addJob(pid_t pid, const string& cmdLine, time_t startTime, bool isStopped) {
+    int id = allocateJobId();
+    JobStatus stat = isStopped ? JobStatus::Stopped : JobStatus::Running;
+    m_jobs.emplace_back(id, pid, cmdLine, startTime, stat);
+    return id;
+}
+
+void JobList::printJobList() const {
+    for (const Job& job : m_jobs) {
+        cout << "[" << job.getId() << "] " << job.getCommand() << " : " << job.getPid();
+        if (job.getStatus() == JobStatus::Stopped) {
+            cout << " (stopped) ";
+        }
+        cout << endl;
+    }
+}
+
+Job* JobList::getJobById(int jobId) {
+    for (Job& job : m_jobs) {
+        if (job.getId() == jobId) {
+            return &job;
+        }
+    }
+    return nullptr;
+}
+
+Job* JobList::getJobByPid(pid_t pid) {
+    for (Job& job : m_jobs) {
+        if (job.getPid() == pid) {
+            return &job;
+        }
+    }
+    return nullptr;
+}
+
+Job* JobList::getLastJob() {
+    if (m_jobs.empty()) {
+        return nullptr;
+    }
+    else {
+        return &m_jobs.back();
+    }
+}
+
+Job* JobList::getLastStoppedJob() {
+    if (m_jobs.empty()) {
+        return nullptr;
+    }
+    for (int i = static_cast<int>(m_jobs.size()) - 1; i >= 0; --i) {
+        if (m_jobs[i].getStatus() == JobStatus::Stopped) {
+            return &m_jobs[i];
+        }
+    }
+    return nullptr;
+}
+
+bool JobList::removeJobById(int jobId) {
+    for (size_t i = 0; i < m_jobs.size(); i++) {
+        if (m_jobs[i].getId() == jobId) {
+            m_jobs.erase(m_jobs.begin() + i);
+            return true;
+        }
+    }
+    return false;
+}
+
+bool JobList::removeJobByPid(pid_t pid) {
+    for (size_t i = 0; i < m_jobs.size(); i++) {
+        if (m_jobs[i].getPid() == pid) {
+            m_jobs.erase(m_jobs.begin() + i);
+            return true;
+        }
+    }
+    return false;
+}
+

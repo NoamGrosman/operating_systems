@@ -1,0 +1,47 @@
+#ifndef SMASH_JOBS_H
+#define SMASH_JOBS_H
+#include <string>
+#include <vector>
+#include <sys/types.h>
+
+
+enum class JobStatus { Running, Stopped };
+class Job {
+    public:
+    Job(int JobId, pid_t pid, const std::string& cmdLine, time_t startTime, JobStatus status);
+    int getId() const;
+    pid_t getPid() const;
+    const std::string& getCommand() const;
+    time_t getStartTime() const;
+    JobStatus getStatus() const;
+
+    void setStatus(JobStatus newStatus);
+
+    private:
+    int m_id;
+    pid_t m_pid;
+    std::string m_cmdLine;
+    time_t m_startTime;
+    JobStatus m_status;
+};
+
+class JobList {
+    public:
+    JobList();
+    int addJob(pid_t pid, const std::string& cmdLine, time_t startTime, bool isStopped);
+    void printJobList() const;
+    Job* getJobById(int jobId);
+    Job* getJobByPid(pid_t pid);
+    bool removeJobByPid(pid_t pid);
+    bool removeJobById(int jobId);
+    Job* getLastJob();
+    Job* getLastStoppedJob();
+    //void removeFinishedJobs();
+    //void killAllJobs();
+
+    private:
+    std::vector<Job> m_jobs;
+    int allocateJobId() const;
+};
+
+#endif //SMASH_JOBS_H

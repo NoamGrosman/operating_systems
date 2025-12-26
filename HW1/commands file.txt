@@ -1,0 +1,136 @@
+//commands.c
+#include "commands.h"
+#include <stdio.h>
+#include <string.h>
+#include <unistd.h>
+#include <sys/types.h>
+#include <sys/wait.h>
+
+
+#define MAX_ARGS 20
+
+static int isBuiltIn(const char *cmd);
+static CommandResult runBuiltIn(char *argv[]);
+static CommandResult runExternalForeground(char *argv[]);
+
+//example function for printing errors from internal commands
+void perrorSmash(const char* cmd, const char* msg)
+{
+	fprintf(stderr, "smash error:%s%s%s\n",
+		cmd ? cmd : "",
+		cmd ? ": " : "",
+		msg);
+}
+
+static int isBuiltIn(const char *cmd) {
+	return strcmp(cmd, "quit") == 0 || strcmp(cmd, "showpid") == 0 || strcmp(cmd, "pwd") == 0;
+}
+
+static CommandResult runBuiltIn(char *argv[]) {
+	const char *cmd = argv[0];
+	if (strcmp(cmd, "quit") == 0) {
+		return SMASH_QUIT;
+	}
+	if (strcmp(cmd, "showpid") == 0) {
+		printf("smash pid is %d\n", (int)getpid());
+		return SMASH_SUCCESS;
+	}
+	if (strcmp(cmd, "pwd") == 0) {
+		char cwd[1024];
+		if (!getcwd(cwd, sizeof(cwd))) {
+			perrorSmash("pwd", "getcwd failed");
+			return SMASH_FAIL;
+		}
+		printf("%s\n", cwd);
+		return SMASH_SUCCESS;
+	}
+	return SMASH_SUCCESS;
+}
+
+static CommandResult runExternalForeground(char *argv[]) {
+	pid_t pid = fork(); //LATER CHANGE TO WRAPPER
+	if (pid < 0) {
+		perrorSmash(argv[0], "fork failed");
+		return SMASH_FAIL;
+	}
+	if (pid == 0) {
+		execvp(argv[0], argv); //LATER CHANGE TO WRAPPER
+		perrorSmash(argv[0], "exec failed");
+		_exit(1);
+	}
+
+	int status;
+	if (waitpid(pid, &status, 0) < 0) { //LATER CHANGE TO WRAPPER
+		perrorSmash (argv[0], "waitpid failed");
+		return SMASH_FAIL;
+	}
+	return SMASH_SUCCESS;
+}
+
+
+//example function for parsing commands
+// static ParsingError parseCmdExample(char* line)
+// {
+// 	char* delimiters = " \t\n"; //parsing should be done by spaces, tabs or newlines
+// 	char* cmd = strtok(line, delimiters); //read strtok documentation - parses string by delimiters
+// 	if(!cmd)
+// 		return INVALID_COMMAND; //this means no tokens were found, most like since command is invalid
+//
+// 	char* args[MAX_ARGS];
+// 	int nargs = 0;
+// 	args[0] = cmd; //first token before spaces/tabs/newlines should be command name
+// 	for(int i = 1; i < MAX_ARGS; i++)
+// 	{
+// 		args[i] = strtok(NULL, delimiters); //first arg NULL -> keep tokenizing from previous call
+// 		if(!args[i])
+// 			break;
+// 		nargs++;
+// 	}
+//
+// 	(void)args;
+// 	(void)nargs;
+//
+// 	return INVALID_COMMAND;
+// 	/*
+// 	At this point cmd contains the command string and the args array contains
+// 	the arguments. You can return them via struct/class, for example in C:
+// 		typedef struct {
+// 			char* cmd;
+// 			char* args[MAX_ARGS];
+// 		} Command;
+// 	Or maybe something more like this:
+// 		typedef struct {
+// 			bool bg;
+// 			char** args;
+// 			int nargs;
+// 		} CmdArgs;
+// 	*/
+// }
+
+CommandResult executeCommand(char* line) {
+	char buf[CMD_LENGTH_MAX];
+	strncpy(buf,line,sizeof(buf));
+	buf[sizeof(buf)-1] = '\0';
+
+	char *argv[MAX_ARGS];
+	int argc = 0;
+
+	char *token = strtok(buf," \t");
+	while (token && argc < MAX_ARGS) {
+		argv[argc++] = token;
+		token = strtok(NULL," \t");
+	}
+	argv[argc] = NULL;
+
+	if (argc == 0) {
+		return SMASH_SUCCESS;
+	}
+
+	if (isBuiltIn(argv[0])) {
+		return runBuiltIn(argv);
+	}
+
+	return runExternalForeground(argv);
+	printf("DEBUG: executeCommand got: '%s'\n", line);
+	// return SMASH_SUCCESS;
+}

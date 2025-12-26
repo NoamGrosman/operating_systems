@@ -1,0 +1,11 @@
+# Standard C/C++ Ignore
+*.o
+*.exe
+*.out
+
+# Windows/WSL Junk
+*:Zone.Identifier
+
+# OS Logs
+*.log
+core

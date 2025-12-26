@@ -1,0 +1,6 @@
+// signals.c
+#include "signals.h"
+
+void setupSignals(void) { }
+void ctrlCHandler(int sig) { (void)sig; }
+void ctrlZHandler(int sig) { (void)sig; }
