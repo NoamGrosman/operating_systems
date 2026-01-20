@@ -437,32 +437,34 @@ void* customMTMalloc(size_t size) {
         // Cannot allocate more than region size
         return NULL;
     }
+
+    // Get start index
     pthread_mutex_lock(&mt_global_lock);
     int start_region = mt_next_region;
+    // Update next region for the next thread
+    mt_next_region = (mt_next_region + 1) % MT_INITIAL_REGIONS; 
+    pthread_mutex_unlock(&mt_global_lock);
     int regions_checked = 0;
-    int total_regions = MT_INITIAL_REGIONS;
-    // Count extra regions
-    for (MemRegion* r = mt_extra_regions; r != NULL; r = r->next) {
-        total_regions++;
-    }
     // Try to find a region with enough space using round-robin
     while (regions_checked < MT_INITIAL_REGIONS) {
         int region_idx = (start_region + regions_checked) % MT_INITIAL_REGIONS;
         MemRegion* region = &mt_regions[region_idx];
+        
         pthread_mutex_lock(&region->lock);
         MTBlock* block = mt_find_best_fit(region, need_size);
         if (block) {
             block->free = false;
             mt_split_block_if_worth(block, need_size);
-            // Update next region for round-robin
-            mt_next_region = (region_idx + 1) % MT_INITIAL_REGIONS;
             pthread_mutex_unlock(&region->lock);
-            pthread_mutex_unlock(&mt_global_lock);
             return mt_block_to_payload(block);
         }
         pthread_mutex_unlock(&region->lock);
         regions_checked++;
     }
+
+    // We must lock now because we are accessing the shared linked list 'mt_extra_regions'
+    pthread_mutex_lock(&mt_global_lock);
+
     // Check extra regions
     for (MemRegion* region = mt_extra_regions; region != NULL; region = region->next) {
         pthread_mutex_lock(&region->lock);
@@ -471,7 +473,7 @@ void* customMTMalloc(size_t size) {
             block->free = false;
             mt_split_block_if_worth(block, need_size);
             pthread_mutex_unlock(&region->lock);
-            pthread_mutex_unlock(&mt_global_lock);
+            pthread_mutex_unlock(&mt_global_lock); // Unlock global before return
             return mt_block_to_payload(block);
         }
         pthread_mutex_unlock(&region->lock);
@@ -502,8 +504,10 @@ void customMTFree(void* ptr) {
         printf("<free error>: passed non-heap pointer\n");
         return;
     }
+    pthread_mutex_lock(&mt_global_lock);
     // Find which region this pointer belongs to
     MemRegion* region = mt_find_region_for_ptr(ptr);
+    pthread_mutex_unlock(&mt_global_lock);
     if (!region) {
         printf("<free error>: passed non-heap pointer\n");
         return;
@@ -552,7 +556,9 @@ void* customMTRealloc(void* ptr, size_t size) {
         return NULL;
     }
     // Find which region this pointer belongs to
+    pthread_mutex_lock(&mt_global_lock);
     MemRegion* region = mt_find_region_for_ptr(ptr);
+    pthread_mutex_unlock(&mt_global_lock);
     if (!region) {
         printf("<realloc error>: passed non-heap pointer\n");
         return NULL;
